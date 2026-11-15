@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled connection (Neon -pooler host)
+  directUrl = env("DIRECT_URL") // direct connection for schema changes
 }
 
 enum Role {
@@ -61,22 +63,22 @@ enum ReturnStatus {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  name         String
-  email        String    @unique
-  phone        String?
-  passwordHash String
-  role         Role
-  active       Boolean   @default(true)
-  dealerId     Int?      @unique
-  referralCode String?   @unique
-  dealer       Dealer?   @relation("DealerUser", fields: [dealerId], references: [id])
-  createdAt    DateTime  @default(now())
-  deletedAt    DateTime?
-  assignedDealers Dealer[] @relation("SalesDealers")
-  targets      Target[]
-  notifications Notification[]
-  refreshTokens RefreshToken[]
+  id               Int               @id @default(autoincrement())
+  name             String
+  email            String            @unique
+  phone            String?
+  passwordHash     String
+  role             Role
+  active           Boolean           @default(true)
+  dealerId         Int?              @unique
+  referralCode     String?           @unique
+  dealer           Dealer?           @relation("DealerUser", fields: [dealerId], references: [id])
+  createdAt        DateTime          @default(now())
+  deletedAt        DateTime?
+  assignedDealers  Dealer[]          @relation("SalesDealers")
+  targets          Target[]
+  notifications    Notification[]
+  refreshTokens    RefreshToken[]
   termsAcceptances TermsAcceptance[]
 }
 
@@ -90,71 +92,71 @@ model RefreshToken {
 }
 
 model Dealer {
-  id                Int          @id @default(autoincrement())
-  firmName          String
-  type              DealerType   @default(SCHOOL)
-  ownerName         String
-  mobile            String
-  email             String?
-  address           String?
-  city              String?
-  state             String?
-  pincode           String?
-  gstin             String?
-  pan               String?
-  status            DealerStatus @default(PENDING)
-  creditLimitPaise  Int          @default(0)
-  creditDays        Int          @default(30)
-  defaultDiscountBp Int          @default(0)   // basis points, 1000 = 10%
-  openingBalancePaise Int        @default(0)
-  returnLimitQty    Int          @default(0)   // 0 = no limit set
-  salesEmployeeId   Int?
-  salesEmployee     User?        @relation("SalesDealers", fields: [salesEmployeeId], references: [id])
-  createdAt         DateTime     @default(now())
-  deletedAt         DateTime?
-  user              User?        @relation("DealerUser")
-  schools           School[]
-  orders            Order[]
-  termsVersions     TermsVersion[]
-  payments          Payment[]
-  invoices          Invoice[]
-  notes             Note[]
-  returns           ReturnRequest[]
+  id                  Int             @id @default(autoincrement())
+  firmName            String
+  type                DealerType      @default(SCHOOL)
+  ownerName           String
+  mobile              String
+  email               String?
+  address             String?
+  city                String?
+  state               String?
+  pincode             String?
+  gstin               String?
+  pan                 String?
+  status              DealerStatus    @default(PENDING)
+  creditLimitPaise    Int             @default(0)
+  creditDays          Int             @default(30)
+  defaultDiscountBp   Int             @default(0) // basis points, 1000 = 10%
+  openingBalancePaise Int             @default(0)
+  returnLimitQty      Int             @default(0) // 0 = no limit set
+  salesEmployeeId     Int?
+  salesEmployee       User?           @relation("SalesDealers", fields: [salesEmployeeId], references: [id])
+  createdAt           DateTime        @default(now())
+  deletedAt           DateTime?
+  user                User?           @relation("DealerUser")
+  schools             School[]
+  orders              Order[]
+  termsVersions       TermsVersion[]
+  payments            Payment[]
+  invoices            Invoice[]
+  notes               Note[]
+  returns             ReturnRequest[]
 }
 
 model School {
-  id        Int       @id @default(autoincrement())
-  dealerId  Int
-  dealer    Dealer    @relation(fields: [dealerId], references: [id])
-  name      String
-  address   String?
-  board     String?
-  contact   String?
-  deletedAt DateTime?
-  orderLines OrderLine[]
+  id          Int                   @id @default(autoincrement())
+  dealerId    Int
+  dealer      Dealer                @relation(fields: [dealerId], references: [id])
+  name        String
+  address     String?
+  board       String?
+  contact     String?
+  deletedAt   DateTime?
+  orderLines  OrderLine[]
   returnLines ReturnRequestSchool[]
 }
 
 model Book {
-  id        Int       @id @default(autoincrement())
-  code      String    @unique
-  isbn      String?   @unique
-  title     String
-  className String?
-  subject   String?
-  series    String?
-  board     String?
-  mrpPaise  Int
-  hsn       String?
-  weightGrams Int?
-  imagePath String?
-  reorderLevel Int    @default(0)
-  active    Boolean   @default(true)
-  deletedAt DateTime?
-  setItems  BookSetItem[]
-  stock     StockEntry[]
-  orderLines OrderLine[]
-  returnLines ReturnLine[]
+  id           Int           @id @default(autoincrement())
+  code         String        @unique
+  isbn         String?       @unique
+  title        String
+  className    String?
+  subject      String?
+  series       String?
+  board        String?
+  mrpPaise     Int
+  hsn          String?
+  weightGrams  Int?
+  imagePath    String?
+  reorderLevel Int           @default(0)
+  active       Boolean       @default(true)
+  deletedAt    DateTime?
+  setItems     BookSetItem[]
+  stock        StockEntry[]
+  orderLines   OrderLine[]
+  returnLines  ReturnLine[]
 }
 
 model BookSet {
@@ -171,6 +173,7 @@ model BookSetItem {
   bookId Int
   book   Book    @relation(fields: [bookId], references: [id])
   qty    Int     @default(1)
+
   @@unique([setId, bookId])
 }
 
@@ -179,7 +182,7 @@ model StockEntry {
   bookId    Int
   book      Book      @relation(fields: [bookId], references: [id])
   type      StockType
-  qty       Int       // signed: + in, - out
+  qty       Int // signed: + in, - out
   reason    String?
   refType   String?
   refId     Int?
@@ -188,20 +191,21 @@ model StockEntry {
 }
 
 model TermsVersion {
-  id              Int       @id @default(autoincrement())
-  dealerId        Int
-  dealer          Dealer    @relation(fields: [dealerId], references: [id])
-  version         Int
-  discountBp      Int
+  id               Int               @id @default(autoincrement())
+  dealerId         Int
+  dealer           Dealer            @relation(fields: [dealerId], references: [id])
+  version          Int
+  discountBp       Int
   creditLimitPaise Int
-  creditDays      Int
-  returnLimitQty  Int
-  paymentTerms    String?
-  returnPolicy    String?
-  clauses         String?
-  effectiveFrom   DateTime  @default(now())
-  createdById     Int?
-  acceptances     TermsAcceptance[]
+  creditDays       Int
+  returnLimitQty   Int
+  paymentTerms     String?
+  returnPolicy     String?
+  clauses          String?
+  effectiveFrom    DateTime          @default(now())
+  createdById      Int?
+  acceptances      TermsAcceptance[]
+
   @@unique([dealerId, version])
 }
 
@@ -217,156 +221,159 @@ model TermsAcceptance {
 }
 
 model Order {
-  id           Int           @id @default(autoincrement())
-  number       String        @unique
-  dealerId     Int
-  dealer       Dealer        @relation(fields: [dealerId], references: [id])
-  placedById   Int
-  status       OrderStatus   @default(PLACED)
-  discountBp   Int           @default(0)
-  discountNeedsApproval Boolean @default(false)
-  discountApproved Boolean   @default(false)
-  creditOverride Boolean     @default(false)
-  remarks      String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  lines        OrderLine[]
-  history      OrderStatusHistory[]
-  shipments    Shipment[]
+  id                    Int                  @id @default(autoincrement())
+  number                String               @unique
+  dealerId              Int
+  dealer                Dealer               @relation(fields: [dealerId], references: [id])
+  placedById            Int
+  status                OrderStatus          @default(PLACED)
+  discountBp            Int                  @default(0)
+  discountNeedsApproval Boolean              @default(false)
+  discountApproved      Boolean              @default(false)
+  creditOverride        Boolean              @default(false)
+  remarks               String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  lines                 OrderLine[]
+  history               OrderStatusHistory[]
+  shipments             Shipment[]
 }
 
 model OrderLine {
-  id          Int      @id @default(autoincrement())
-  orderId     Int
-  order       Order    @relation(fields: [orderId], references: [id])
-  schoolId    Int
-  school      School   @relation(fields: [schoolId], references: [id])
-  bookId      Int
-  book        Book     @relation(fields: [bookId], references: [id])
-  qtyOrdered  Int
-  qtyPicked   Int      @default(0)
-  qtyDispatched Int    @default(0)
-  unitMrpPaise Int
-  cancelled   Boolean  @default(false)
+  id            Int            @id @default(autoincrement())
+  orderId       Int
+  order         Order          @relation(fields: [orderId], references: [id])
+  schoolId      Int
+  school        School         @relation(fields: [schoolId], references: [id])
+  bookId        Int
+  book          Book           @relation(fields: [bookId], references: [id])
+  qtyOrdered    Int
+  qtyPicked     Int            @default(0)
+  qtyDispatched Int            @default(0)
+  unitMrpPaise  Int
+  cancelled     Boolean        @default(false)
   shipmentLines ShipmentLine[]
 }
 
 model OrderStatusHistory {
-  id         Int         @id @default(autoincrement())
+  id         Int          @id @default(autoincrement())
   orderId    Int
-  order      Order       @relation(fields: [orderId], references: [id])
+  order      Order        @relation(fields: [orderId], references: [id])
   fromStatus OrderStatus?
   toStatus   OrderStatus
   userId     Int?
   note       String?
-  at         DateTime    @default(now())
+  at         DateTime     @default(now())
 }
 
 model Shipment {
-  id          Int       @id @default(autoincrement())
-  number      String    @unique
-  orderId     Int
-  order       Order     @relation(fields: [orderId], references: [id])
-  boxes       Int?
-  weightKg    Float?
-  transporter String?
-  vehicleNo   String?
-  lrNo        String?
-  eWayBill    String?
+  id           Int            @id @default(autoincrement())
+  number       String         @unique
+  orderId      Int
+  order        Order          @relation(fields: [orderId], references: [id])
+  boxes        Int?
+  weightKg     Float?
+  transporter  String?
+  vehicleNo    String?
+  lrNo         String?
+  eWayBill     String?
   dispatchedAt DateTime?
-  biltyPath   String?
-  receivedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  lines       ShipmentLine[]
-  invoice     Invoice?
+  biltyPath    String?
+  biltyData    Bytes?
+  biltyMime    String?
+  receivedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  lines        ShipmentLine[]
+  invoice      Invoice?
 }
 
 model ShipmentLine {
-  id          Int       @id @default(autoincrement())
-  shipmentId  Int
-  shipment    Shipment  @relation(fields: [shipmentId], references: [id])
-  orderLineId Int
-  orderLine   OrderLine @relation(fields: [orderLineId], references: [id])
-  qty         Int
+  id           Int       @id @default(autoincrement())
+  shipmentId   Int
+  shipment     Shipment  @relation(fields: [shipmentId], references: [id])
+  orderLineId  Int
+  orderLine    OrderLine @relation(fields: [orderLineId], references: [id])
+  qty          Int
   unitMrpPaise Int
-  discountBp  Int
+  discountBp   Int
 }
 
 model Invoice {
-  id          Int       @id @default(autoincrement())
-  number      String    @unique
-  dealerId    Int
-  dealer      Dealer    @relation(fields: [dealerId], references: [id])
-  shipmentId  Int       @unique
-  shipment    Shipment  @relation(fields: [shipmentId], references: [id])
-  fy          String
-  grossPaise  Int
+  id            Int                 @id @default(autoincrement())
+  number        String              @unique
+  dealerId      Int
+  dealer        Dealer              @relation(fields: [dealerId], references: [id])
+  shipmentId    Int                 @unique
+  shipment      Shipment            @relation(fields: [shipmentId], references: [id])
+  fy            String
+  grossPaise    Int
   discountPaise Int
-  freightPaise Int      @default(0)
-  roundOffPaise Int     @default(0)
-  netPaise    Int
-  createdAt   DateTime  @default(now())
-  allocations PaymentAllocation[]
+  freightPaise  Int                 @default(0)
+  roundOffPaise Int                 @default(0)
+  netPaise      Int
+  createdAt     DateTime            @default(now())
+  allocations   PaymentAllocation[]
 }
 
 model Note {
-  id          Int       @id @default(autoincrement())
-  number      String    @unique
+  id          Int            @id @default(autoincrement())
+  number      String         @unique
   type        NoteType
   dealerId    Int
-  dealer      Dealer    @relation(fields: [dealerId], references: [id])
-  returnId    Int?      @unique
+  dealer      Dealer         @relation(fields: [dealerId], references: [id])
+  returnId    Int?           @unique
   returnReq   ReturnRequest? @relation(fields: [returnId], references: [id])
   amountPaise Int
   reason      String?
   fy          String
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime       @default(now())
 }
 
 model Payment {
-  id          Int       @id @default(autoincrement())
+  id          Int                 @id @default(autoincrement())
   dealerId    Int
-  dealer      Dealer    @relation(fields: [dealerId], references: [id])
+  dealer      Dealer              @relation(fields: [dealerId], references: [id])
   amountPaise Int
-  mode        String    // CASH | CHEQUE | NEFT | UPI | OTHER
+  mode        String // CASH | CHEQUE | NEFT | UPI | OTHER
   reference   String?
   paidOn      DateTime
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime            @default(now())
   allocations PaymentAllocation[]
 }
 
 model PaymentAllocation {
-  id         Int      @id @default(autoincrement())
-  paymentId  Int
-  payment    Payment  @relation(fields: [paymentId], references: [id])
-  invoiceId  Int
-  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  id          Int     @id @default(autoincrement())
+  paymentId   Int
+  payment     Payment @relation(fields: [paymentId], references: [id])
+  invoiceId   Int
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
   amountPaise Int
 }
 
 model ReturnRequest {
-  id        Int          @id @default(autoincrement())
-  number    String       @unique
-  dealerId  Int
-  dealer    Dealer       @relation(fields: [dealerId], references: [id])
-  status    ReturnStatus @default(REQUESTED)
-  reason    String?
-  overLimit Boolean      @default(false)
-  overrideBy Int?
+  id          Int                   @id @default(autoincrement())
+  number      String                @unique
+  dealerId    Int
+  dealer      Dealer                @relation(fields: [dealerId], references: [id])
+  status      ReturnStatus          @default(REQUESTED)
+  reason      String?
+  overLimit   Boolean               @default(false)
+  overrideBy  Int?
   createdById Int?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  lines     ReturnLine[]
-  schools   ReturnRequestSchool[]
-  note      Note?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  lines       ReturnLine[]
+  schools     ReturnRequestSchool[]
+  note        Note?
 }
 
 model ReturnRequestSchool {
-  id        Int           @id @default(autoincrement())
-  returnId  Int
-  return    ReturnRequest @relation(fields: [returnId], references: [id])
-  schoolId  Int
-  school    School        @relation(fields: [schoolId], references: [id])
+  id       Int           @id @default(autoincrement())
+  returnId Int
+  return   ReturnRequest @relation(fields: [returnId], references: [id])
+  schoolId Int
+  school   School        @relation(fields: [schoolId], references: [id])
+
   @@unique([returnId, schoolId])
 }
 
@@ -388,22 +395,24 @@ model Target {
   id        Int      @id @default(autoincrement())
   salesId   Int
   sales     User     @relation(fields: [salesId], references: [id])
-  period    String   // e.g. "2026-27" or "2026-27-Q1"
-  kind      String   // AMOUNT | QTY
-  value     Int      // paise or units
+  period    String // e.g. "2026-27" or "2026-27-Q1"
+  kind      String // AMOUNT | QTY
+  value     Int // paise or units
   createdAt DateTime @default(now())
+
   @@unique([salesId, period, kind])
 }
 
 model AuditLog {
-  id        Int      @id @default(autoincrement())
-  userId    Int?
-  entity    String
-  entityId  String
-  action    String
-  oldValue  Json?
-  newValue  Json?
-  at        DateTime @default(now())
+  id       Int      @id @default(autoincrement())
+  userId   Int?
+  entity   String
+  entityId String
+  action   String
+  oldValue Json?
+  newValue Json?
+  at       DateTime @default(now())
+
   @@index([entity, entityId])
 }
 

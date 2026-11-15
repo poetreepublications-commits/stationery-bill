@@ -1,8 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
 import multer from "multer";
-import path from "node:path";
-import fs from "node:fs";
 import { prisma } from "../db.js";
 import { wrap, parse, pageParams, paged } from "../lib/http.js";
 import { HttpError, notFound, forbidden, badRequest } from "../lib/errors.js";
@@ -302,16 +300,14 @@ r.post("/shipments/:id/dispatch", requireRole("GODOWN", "SUPER_ADMIN"), wrap(asy
   res.json(updated);
 }));
 
-const upload = multer({ storage: multer.diskStorage({
-  destination: (_req, _file, cb) => { const d = path.join(config.uploadDir, "bilty"); fs.mkdirSync(d, { recursive: true }); cb(null, d); },
-  filename: (_req, file, cb) => cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${path.extname(file.originalname).toLowerCase()}`),
-}), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (_req, file, cb) => cb(null, /image\/(jpeg|png|webp)|application\/pdf/.test(file.mimetype)) });
+// Bilty photos are kept in the database (memory upload), so they survive serverless hosting (Vercel has no persistent disk).
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: (_req, file, cb) => cb(null, /image\/(jpeg|png|webp)|application\/pdf/.test(file.mimetype)) });
 
 r.post("/shipments/:id/bilty", requireRole("GODOWN", "ACCOUNTS", "SALES", "SUPER_ADMIN"), upload.single("file"), wrap(async (req, res) => {
   const s = await loadShipment(Number(req.params.id), req.user!);
   if (!req.file) throw badRequest("Upload a photo or PDF of the bilty/LR");
-  const updated = await prisma.shipment.update({ where: { id: s.id }, data: { biltyPath: req.file.path } });
-  await audit(req.user!.id, "Shipment", s.id, "BILTY_UPLOAD", null, { file: req.file.filename });
+  const updated = await prisma.shipment.update({ where: { id: s.id }, data: { biltyData: req.file.buffer, biltyMime: req.file.mimetype, biltyPath: "db" } });
+  await audit(req.user!.id, "Shipment", s.id, "BILTY_UPLOAD", null, { bytes: req.file.size, mime: req.file.mimetype });
   const order = await prisma.order.findUniqueOrThrow({ where: { id: s.orderId } });
   if (order.status === "DISPATCHED") await transition(order.id, "BILTY_UPLOADED", req.user!, "Bilty uploaded");
   res.json(updated);
@@ -344,8 +340,10 @@ r.get("/shipments/:id", requireRole("SUPER_ADMIN", "ACCOUNTS", "SALES", "DEALER"
 
 r.get("/shipments/:id/bilty", requireRole("SUPER_ADMIN", "ACCOUNTS", "SALES", "DEALER", "GODOWN"), wrap(async (req, res) => {
   const s = await loadShipment(Number(req.params.id), req.user!);
-  if (!s.biltyPath) throw notFound("No bilty uploaded yet");
-  res.sendFile(path.resolve(s.biltyPath));
+  const row = await prisma.shipment.findUnique({ where: { id: s.id }, select: { biltyData: true, biltyMime: true } });
+  if (!row?.biltyData) throw notFound("No bilty uploaded yet");
+  res.setHeader("Content-Type", row.biltyMime ?? "application/octet-stream");
+  res.send(Buffer.from(row.biltyData));
 }));
 
 export default r;
